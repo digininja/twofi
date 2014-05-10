@@ -80,6 +80,10 @@ def twitter_search(query)
 
 	begin
 		data = @twitter_client.search(query, :result_type => "recent")
+	rescue Twitter::Error::RequestTimeout
+		puts "There was a timeout trying to connect to Twitter."
+		puts "Please check your network connection and try again.\n\n"
+		exit
 	rescue Twitter::Error::Forbidden, Twitter::Error::Unauthorized
 		puts "The authentication with Twitter failed, please check your API keys."
 		puts "If there is a bearer_token entry in your config file try removing that.\n\n"
