@@ -26,19 +26,10 @@
 require 'yaml'
 require 'twitter'
 require 'getoptlong'
+require 'fileutils'
 
-opts = GetoptLong.new(
-  [ '--help', '-h', GetoptLong::NO_ARGUMENT ],
-  [ '--config', GetoptLong::REQUIRED_ARGUMENT ],
-  [ '--count', '-c', GetoptLong::NO_ARGUMENT ],
-  [ '--min_word_length', "-m" , GetoptLong::REQUIRED_ARGUMENT ],
-  [ '--term_file', "-T" , GetoptLong::REQUIRED_ARGUMENT ],
-  [ '--terms', "-t" , GetoptLong::REQUIRED_ARGUMENT ],
-  [ '--user_file', "-U" , GetoptLong::REQUIRED_ARGUMENT ],
-  [ '--users', "-u" , GetoptLong::REQUIRED_ARGUMENT ],
-  [ '--ignore-usernames', "-i" , GetoptLong::NO_ARGUMENT ],
-  [ '--verbose', "-v" , GetoptLong::NO_ARGUMENT ]
-)
+
+############### 
 
 def sample_config
   puts "The config file \"#{@config_file}\" is missing or invalid, please create a config file in the format:"
@@ -50,6 +41,8 @@ To get your keys you must register with Twitter at: https://apps.twitter.com/
 "
   exit
 end
+
+###############
 
 def usage
   puts 'twoif 2.0-beta Robin Wood (robin@digininja.org) (www.digininja.org)
@@ -67,16 +60,14 @@ Usage: twoif [OPTIONS]
   --users, -u: comma separated usernames
     quote words containing spaces, no space after commas
   --ignore-usernames, -i: Ignore the usernames mentioned in the tweets
+  --[no-]meaningful, -m: Ignore the non meaningful words (articles, conjunctions, etc.)
   --verbose, -v: verbose
 
 '
   exit
 end
 
-# Default this to nil and it is then created
-# when first needed in the search
-
-@twitter_client = nil
+###############
 
 def twitter_search(query)
   if @twitter_client.nil?
@@ -104,16 +95,96 @@ def twitter_search(query)
   return data
 end
 
+###############
+
 def is_username(word)
   return !/^@[^\s]{3,15}$/.match(word).nil?
 end
+
+###############
+
+def ls_r_files(path)
+  path.gsub!(/\/+$/,"")
+  if path[-2,2] != "/." and path[-2,3] != "/.."
+    if File.directory?(path)
+      fentries = []
+      entries = Dir.entries(path)
+      entries.each{|entry|
+        if entry != "."  and entry != ".."
+          if File.directory?("#{path}/#{entry}")
+            ientries = ls_r_files("#{path}/#{entry}")
+            if !ientries.nil?
+              ientries.each{|ientry|
+                fentries << ientry        
+              }
+            end          
+          else
+            fentries << "#{path}/#{entry}"
+          end
+        end
+      }
+      return fentries
+    else
+      return path
+    end
+  else
+    return nil
+  end
+end
+
+###############
+
+def ismeaningful(word)
+  return @non_meaningful_words.index(word).nil?
+end
+
+###############
+
+def loadIgnoreWords()
+  ignore = []
+  fname = ls_r_files("./ignore")
+  fname.each{|file|
+    if file.split("/")[-1] == "ignore.list"
+      f = File.open(file,"r")
+      ilist = f.read.split("\n")
+      if !ilist.nil?
+        ilist.each{|iword|
+          ignore << iword
+        }
+      end
+    end  
+  }
+end
+
+########
+# MAIN #
+########
+
+opts = GetoptLong.new(
+  [ '--help', '-h', GetoptLong::NO_ARGUMENT ],
+  [ '--config', GetoptLong::REQUIRED_ARGUMENT ],
+  [ '--count', '-c', GetoptLong::NO_ARGUMENT ],
+  [ '--min_word_length', "-m" , GetoptLong::REQUIRED_ARGUMENT ],
+  [ '--term_file', "-T" , GetoptLong::REQUIRED_ARGUMENT ],
+  [ '--terms', "-t" , GetoptLong::REQUIRED_ARGUMENT ],
+  [ '--user_file', "-U" , GetoptLong::REQUIRED_ARGUMENT ],
+  [ '--users', "-u" , GetoptLong::REQUIRED_ARGUMENT ],
+  [ '--ignore-usernames', "-i" , GetoptLong::NO_ARGUMENT ],
+  [ '--meaningful', "-M" , GetoptLong::NO_ARGUMENT ],
+  [ '--verbose', "-v" , GetoptLong::NO_ARGUMENT ]
+)
 
 users=[]
 terms=[]
 min_word_length=3
 show_count=false
 ignoreusernames=false
+onlymeaningful=false
 @config_file = "twofi.yml"
+# Default this to nil and it is then created
+# when first needed in the search
+@twitter_client = nil
+@non_meaningful_words = loadIgnoreWords()
 
 begin
   opts.each do |opt, arg|
@@ -159,6 +230,8 @@ begin
       end
     when '--ignore-usernames'
       ignoreusernames=true
+    when '--meaningful'
+      onlymeaningful=true
     when '--verbose'
       verbose=true
     when '--write'
@@ -236,7 +309,7 @@ else
     words = text.split(/\s/)
     words.each do |word|
       #Empty or shorter than required
-      if word == '' or word.length < min_word_length or (is_username(word) and ignoreusernames)
+      if word == '' or word.length < min_word_length or (is_username(word) and ignoreusernames) or (!ismeaningful(word) and onlymeaningful)
         next
       end
       if wordlist.key?(word)
