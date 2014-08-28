@@ -1,7 +1,7 @@
 twofi, Twitter Words of Interest
 ================================
 
-Copyright(c) 2014, Robin Wood <robin@digininja.org>
+Copyright(c) 2014, Robin Wood <robin@digininja.org> 
 
 When attempting to crack passwords custom word lists are very useful additions
 to standard dictionaries. An interesting idea originally released on the "7
@@ -67,6 +67,7 @@ Usage: twofi [OPTIONS]
 	--user_file, -U <file>: a file containing a list of users
 	--users, -u: comma separated search terms
 		quote words containing spaces, no space after commas
+    --ingnore-usernames, -i: Ignore the usernames mentioned in the tweets
 	--verbose, -v: verbose
 
 Usage is fairly simple, you can specify search terms or usernames either on the
@@ -98,6 +99,7 @@ flag does nothing. I've included it for future versions.
 Change Log
 ==========
 
+2.1-beta - Fix bugs with latin an cyrilic characters and optional ignore usernames
 2.0-beta - Updated to use the new authenticated API
 1.0 - Initial release
 

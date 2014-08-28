@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# encoding: utf-8
 
 #
 # This script takes a list of twitter usernames or search terms and generates a
@@ -12,161 +13,252 @@
 # Author:: Robin Wood (robin@digininja.org)
 # Copyright:: Copyright (c) Robin Wood 2014
 # Licence:: Creative Commons Attribution-Share Alike 2.0
+# 
+# CHANGELOG:
+# * 2014-07 (@femoltor): 
+#     Add optional ignore usernames feature. 
+#     For non english users: Fix problem with latin an cirilyc characters.
+#     Developing dictionaries to ignore non meaningfull words (subset of http://www.link-assistant.com/seo-stop-words.html)  
 #
+# TODO: Ignore shortened URLs
+# TODO: Optional ignore hashtags (sometimes they are useful, sometimes not)
 
 require 'yaml'
 require 'twitter'
 require 'getoptlong'
+require 'fileutils'
 
-opts = GetoptLong.new(
-	[ '--help', '-h', GetoptLong::NO_ARGUMENT ],
-	[ '--config', GetoptLong::REQUIRED_ARGUMENT ],
-	[ '--count', '-c', GetoptLong::NO_ARGUMENT ],
-	[ '--min_word_length', "-m" , GetoptLong::REQUIRED_ARGUMENT ],
-	[ '--term_file', "-T" , GetoptLong::REQUIRED_ARGUMENT ],
-	[ '--terms', "-t" , GetoptLong::REQUIRED_ARGUMENT ],
-	[ '--user_file', "-U" , GetoptLong::REQUIRED_ARGUMENT ],
-	[ '--users', "-u" , GetoptLong::REQUIRED_ARGUMENT ],
-	[ '--verbose', "-v" , GetoptLong::NO_ARGUMENT ]
-)
+
+############### 
 
 def sample_config
-	puts "The config file \"#{@config_file}\" is missing or invalid, please create a config file in the format:"
-	puts "options:
-	api_key: <YOUR KEY>
-	api_secret: <YOUR SECRET>
+  puts "The config file \"#{@config_file}\" is missing or invalid, please create a config file in the format:"
+  puts "options:
+  api_key: <YOUR KEY>
+  api_secret: <YOUR SECRET>
 
 To get your keys you must register with Twitter at: https://apps.twitter.com/
 "
-	exit
+  exit
 end
 
+###############
+
 def usage
-	puts 'twoif 2.0-beta Robin Wood (robin@digininja.org) (www.digininja.org)
+  puts 'twoif 2.0-beta Robin Wood (robin@digininja.org) (www.digininja.org)
 twoif - Twitter Words of Interest
 
 Usage: twoif [OPTIONS]
-	--help, -h: show help
-	--config <file>: config file, default is twofi.yml
-	--count, -c: include the count with the words
-	--min_word_length, -m: minimum word length
-	--term_file, -T <file>: a file containing a list of terms
-	--terms, -t: comma separated search terms
-		quote words containing spaces, no space after commas
-	--user_file, -U <file>: a file containing a list of users
-	--users, -u: comma separated usernames
-		quote words containing spaces, no space after commas
-	--verbose, -v: verbose
+  --help, -h: show help
+  --config <file>: config file, default is twofi.yml
+  --count, -c: include the count with the words
+  --min_word_length, -m: minimum word length
+  --term_file, -T <file>: a file containing a list of terms
+  --terms, -t: comma separated search terms
+    quote words containing spaces, no space after commas
+  --user_file, -U <file>: a file containing a list of users
+  --users, -u: comma separated usernames
+    quote words containing spaces, no space after commas
+  --ignore-usernames, -i: Ignore the usernames mentioned in the tweets
+  --meaningful, -M: Ignore the non meaningful words (articles, conjunctions, etc.)
+  --verbose, -v: verbose
 
 '
-	exit
+  exit
 end
 
-# Default this to nil and it is then created
-# when first needed in the search
-
-@twitter_client = nil
+###############
 
 def twitter_search(query)
-	if @twitter_client.nil?
-		@twitter_client = Twitter::REST::Client.new do |config|
-			config.consumer_key = @api_key
-			config.consumer_secret = @api_secret
-			unless @bearer_token.nil?
-				config.bearer_token = @bearer_token
-			end
-		end
-	end
+  if @twitter_client.nil?
+    @twitter_client = Twitter::REST::Client.new do |config|
+      config.consumer_key = @api_key
+      config.consumer_secret = @api_secret
+      unless @bearer_token.nil?
+        config.bearer_token = @bearer_token
+      end
+    end
+  end
 
-	begin
-		data = @twitter_client.search(query, :result_type => "recent")
-	rescue Twitter::Error::RequestTimeout
-		puts "There was a timeout trying to connect to Twitter."
-		puts "Please check your network connection and try again.\n\n"
-		exit
-	rescue Twitter::Error::Forbidden, Twitter::Error::Unauthorized
-		puts "The authentication with Twitter failed, please check your API keys."
-		puts "If there is a bearer_token entry in your config file try removing that.\n\n"
-		exit
-	end
+  begin
+    data = @twitter_client.search(query, :result_type => "recent")
+  rescue Twitter::Error::RequestTimeout
+    puts "There was a timeout trying to connect to Twitter."
+    puts "Please check your network connection and try again.\n\n"
+    exit
+  rescue Twitter::Error::Forbidden, Twitter::Error::Unauthorized
+    puts "The authentication with Twitter failed, please check your API keys."
+    puts "If there is a bearer_token entry in your config file try removing that.\n\n"
+    exit
+  end
 
-	return data
+  return data
 end
+
+###############
+
+def is_username(word)
+  return !/^@[^\s]{3,15}$/.match(word).nil?
+end
+
+###############
+
+def ls_r_files(path)
+  path.gsub!(/\/+$/,"")
+  if path[-2,2] != "/." and path[-2,3] != "/.."
+    if File.directory?(path)
+      fentries = []
+      entries = Dir.entries(path)
+      entries.each{|entry|
+        if entry != "."  and entry != ".."
+          if File.directory?("#{path}/#{entry}")
+            ientries = ls_r_files("#{path}/#{entry}")
+            if !ientries.nil?
+              ientries.each{|ientry|
+                fentries << ientry        
+              }
+            end          
+          else
+            fentries << "#{path}/#{entry}"
+          end
+        end
+      }
+      return fentries
+    else
+      return path
+    end
+  else
+    return nil
+  end
+end
+
+###############
+
+def ismeaningful(word)
+  return @non_meaningful_words.index(word.upcase).nil?
+end
+
+###############
+
+def loadIgnoreWords()
+  ignore = []
+  fname = ls_r_files("./ignore")
+  fname.each{|file|
+    if file.split("/")[-1] == "ignore.list"
+      f = File.open(file,"r")
+      ilist = f.read.split("\n")
+      if !ilist.nil?
+        ilist.each{|iword|
+          ignore << iword.upcase
+        }
+      end
+    end  
+  }
+  return ignore
+end
+
+########
+# MAIN #
+########
+
+opts = GetoptLong.new(
+  [ '--help', '-h', GetoptLong::NO_ARGUMENT ],
+  [ '--config', GetoptLong::REQUIRED_ARGUMENT ],
+  [ '--count', '-c', GetoptLong::NO_ARGUMENT ],
+  [ '--min_word_length', "-m" , GetoptLong::REQUIRED_ARGUMENT ],
+  [ '--term_file', "-T" , GetoptLong::REQUIRED_ARGUMENT ],
+  [ '--terms', "-t" , GetoptLong::REQUIRED_ARGUMENT ],
+  [ '--user_file', "-U" , GetoptLong::REQUIRED_ARGUMENT ],
+  [ '--users', "-u" , GetoptLong::REQUIRED_ARGUMENT ],
+  [ '--ignore-usernames', "-i" , GetoptLong::NO_ARGUMENT ],
+  [ '--meaningful', "-M" , GetoptLong::NO_ARGUMENT ],
+  [ '--verbose', "-v" , GetoptLong::NO_ARGUMENT ]
+)
 
 users=[]
 terms=[]
 min_word_length=3
 show_count=false
+ignoreusernames=false
+onlymeaningful=false
 @config_file = "twofi.yml"
+# Default this to nil and it is then created
+# when first needed in the search
+@twitter_client = nil
+@non_meaningful_words = loadIgnoreWords()
 
 begin
-	opts.each do |opt, arg|
-		case opt
-		when "--config"
-			@config_file = arg
-		when '--count'
-			show_count = true
-		when '--help'
-			usage
-		when "--user_file"
-			begin
-				File.new(arg, 'r').each_line do |line|
-					username = 'from:' + line.chomp.sub(/^@/, '')
-					terms << username
-				end
-			rescue
-				puts "Unable to read the users file\n"
-				exit
-			end
-		when "--term_file"
-			begin
-				File.new(arg, 'r').each_line do |line|
-					terms << line.chomp
-				end
-			rescue
-				puts "Unable to read the terms file\n"
-				exit
-			end
-		when '--terms'
-			arg.split(',').each do |term|
-				terms << term
-			end
-		when '--users'
-			arg.split(',').each do |user|
-				username = 'from:' + user.chomp.sub(/^@/, '')
-				terms << username
-			end
-		when '--min_word_length'
-			min_word_length=arg.to_i
-			if min_word_length<1
-				usage
-			end
-		when '--verbose'
-			verbose=true
-		when '--write'
-			outfile=arg
-		end
-	end
+  opts.each do |opt, arg|
+    case opt
+    when "--config"
+      @config_file = arg
+    when '--count'
+      show_count = true
+    when '--help'
+      usage
+    when "--user_file"
+      begin
+        File.new(arg, 'r').each_line do |line|
+          username = 'from:' + line.chomp.sub(/^@/, '')
+          terms << username
+        end
+      rescue
+        puts "Unable to read the users file\n"
+        exit
+      end
+    when "--term_file"
+      begin
+        File.new(arg, 'r').each_line do |line|
+          terms << line.chomp
+        end
+      rescue
+        puts "Unable to read the terms file\n"
+        exit
+      end
+    when '--terms'
+      arg.split(',').each do |term|
+        terms << term
+      end
+    when '--users'
+      arg.split(',').each do |user|
+        username = 'from:' + user.chomp.sub(/^@/, '')
+        terms << username
+      end
+    when '--min_word_length'
+      min_word_length=arg.to_i
+      if min_word_length<1
+        usage
+      end
+    when '--ignore-usernames'
+      ignoreusernames=true
+    when '--meaningful'
+      onlymeaningful=true
+    when '--verbose'
+      verbose=true
+    when '--write'
+      outfile=arg
+    end
+  end
 rescue => e
-	usage
+  usage
 end
 
 if terms.count == 0
-	puts 'You must specify at least one search term or username'
-	puts
-	usage
+  puts 'You must specify at least one search term or username'
+  puts
+  usage
 end
 
 # Check the config file exits then parse out of it
 # the stuff that we need
 
 if File.exists?(@config_file)
-	config = YAML.load_file(@config_file)
-	if config == false
-		sample_config
-	end
+  config = YAML.load_file(@config_file)
+  if config == false
+    sample_config
+  end
 else
-	sample_config
+  sample_config
 end
 
 @api_key = nil
@@ -174,71 +266,76 @@ end
 @bearer_token = nil
 
 if config.include?"options"
-	if config["options"].include?"api_key" and config["options"].include?"api_secret"
-		@api_key = config["options"]["api_key"]
-		@api_secret = config["options"]["api_secret"]
-	else
-		sample_config
-	end
+  if config["options"].include?"api_key" and config["options"].include?"api_secret"
+    @api_key = config["options"]["api_key"]
+    @api_secret = config["options"]["api_secret"]
+  else
+    sample_config
+  end
 
-	if @api_key == "<YOUR KEY>"
-		sample_config
-	end
+  if @api_key == "<YOUR KEY>"
+    sample_config
+  end
 
-	if config["options"].include?"bearer_token"
-		@bearer_token = config["options"]["bearer_token"]
-	else
-		@bearer_token = nil
-	end
+  if config["options"].include?"bearer_token"
+    @bearer_token = config["options"]["bearer_token"]
+  else
+    @bearer_token = nil
+  end
 else
-	sample_config
+  sample_config
 end
 
 results = []
 
 terms.each do |term|
-	data = twitter_search(term)
-	results += data.to_a
+  data = twitter_search(term)
+  results += data.to_a
 end
 
 if results.count == 0
-	puts "No search results"
+  puts "No search results"
 else
-	wordlist = {}
-	results.each do |result|
-		# have to .dup the text as it comes in frozen
-		text = result.full_text.dup
-		# Strip any non word type characters
-		text.gsub!(/[^\w \s \d]/, ' ')
-		words = text.split(/\s/)
-		words.each do |word|
-			#Empty or shorter than required
-			if word == '' or word.length < min_word_length
-				next
-			end
-			if wordlist.key?(word)
-				wordlist[word] += 1
-			else
-				wordlist[word] = 1
-			end
-		end
-	end
+  wordlist = {}
+  results.each do |result|
+    # have to .dup the text as it comes in frozen
+    text = result.full_text.dup
+    # Strip any non word type characters and substitute accents and other Latin and cirilyc chars
+    text.tr!(
+    "ÀÁÂÃÄÅàáâãäåĀāĂăĄąÇçĆćĈĉĊċČčÐðĎďĐđÈÉÊËèéêëĒēĔĕĖėĘęĚěĜĝĞğĠġĢģĤĥĦħÌÍÎÏìíîïĨĩĪīĬĭĮįİıĴĵĶķĸĹĺĻļĽľĿŀŁłÑñŃńŅņŇňŉŊŋÒÓÔÕÖØòóôõöøŌōŎŏŐőŔŕŖŗŘřŚśŜŝŞşŠšſŢţŤťŦŧÙÚÛÜùúûüŨũŪūŬŭŮůŰűŲųŴŵÝýÿŶŷŸŹźŻżŽž",
+    "AAAAAAaaaaaaAaAaAaCcCcCcCcCcDdDdDdEEEEeeeeEeEeEeEeEeGgGgGgGgHhHhIIIIiiiiIiIiIiIiIiJjKkkLlLlLlLlLlNnNnNnNnnNnOOOOOOooooooOoOoOoRrRrRrSsSsSsSssTtTtTtUUUUuuuuUuUuUuUuUuUuWwYyyYyYZzZzZz"
+    )
+    text.gsub!(/[^\w \s \d \@]/, ' ')
+    text.gsub!("@"," ") if !ignoreusernames
+    words = text.split(/\s/)
+    words.each do |word|
+      #Empty or shorter than required
+      if word == '' or word.length < min_word_length or (is_username(word) and ignoreusernames) or (!ismeaningful(word) and onlymeaningful)
+        next
+      end
+      if wordlist.key?(word)
+        wordlist[word] += 1
+      else
+        wordlist[word] = 1
+      end
+    end
+  end
 
-	sorted_wordlist = wordlist.sort_by do |word, count| -count end
-	sorted_wordlist.each do |word, count|
-		if show_count
-			puts word + ', ' + count.to_s
-		else
-			puts word
-		end
-	end
+  sorted_wordlist = wordlist.sort_by do |word, count| -count end
+  sorted_wordlist.each do |word, count|
+    if show_count
+      puts word + ', ' + count.to_s
+    else
+      puts word
+    end
+  end
 end
 
 # Write out the bearer token, this saves making unnecessary
 # requests next time
 unless @twitter_client.bearer_token.nil?
-	config['options']["bearer_token"] = @twitter_client.bearer_token.to_s
-	File.open(@config_file,'w') do |h| 
-		h.write config.to_yaml
-	end
+  config['options']["bearer_token"] = @twitter_client.bearer_token.to_s
+  File.open(@config_file,'w') do |h| 
+    h.write config.to_yaml
+  end
 end
