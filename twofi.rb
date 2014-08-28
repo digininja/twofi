@@ -60,7 +60,7 @@ Usage: twoif [OPTIONS]
   --users, -u: comma separated usernames
     quote words containing spaces, no space after commas
   --ignore-usernames, -i: Ignore the usernames mentioned in the tweets
-  --[no-]meaningful, -m: Ignore the non meaningful words (articles, conjunctions, etc.)
+  --meaningful, -M: Ignore the non meaningful words (articles, conjunctions, etc.)
   --verbose, -v: verbose
 
 '
@@ -135,7 +135,7 @@ end
 ###############
 
 def ismeaningful(word)
-  return @non_meaningful_words.index(word).nil?
+  return @non_meaningful_words.index(word.upcase).nil?
 end
 
 ###############
@@ -149,11 +149,12 @@ def loadIgnoreWords()
       ilist = f.read.split("\n")
       if !ilist.nil?
         ilist.each{|iword|
-          ignore << iword
+          ignore << iword.upcase
         }
       end
     end  
   }
+  return ignore
 end
 
 ########
