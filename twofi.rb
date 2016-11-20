@@ -42,10 +42,10 @@ To get your keys you must register with Twitter at: https://apps.twitter.com/
 end
 
 def usage
-	puts 'twoif 2.0-beta Robin Wood (robin@digininja.org) (www.digininja.org)
-twoif - Twitter Words of Interest
+	puts 'twofi 2.0-beta Robin Wood (robin@digininja.org) (www.digininja.org)
+twofi - Twitter Words of Interest
 
-Usage: twoif [OPTIONS]
+Usage: twofi [OPTIONS]
 	--help, -h: show help
 	--config <file>: config file, default is twofi.yml
 	--count, -c: include the count with the words
