@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# encoding: utf-8
 
 #
 # This script takes a list of twitter usernames or search terms and generates a
@@ -9,26 +10,26 @@
 # "7 Habits of Highly Effective Hackers" blog
 # http://7habitsofhighlyeffectivehackers.blogspot.com.au/2012/05/using-twitter-to-build-password.html
 #
-# Author:: Robin Wood (robin@digininja.org)
-# Copyright:: Copyright (c) Robin Wood 2014
+# Author:: Robin Wood (robin@digi.ninja)
+# Copyright:: Copyright (c) Robin Wood 2016
 # Licence:: Creative Commons Attribution-Share Alike 2.0
 #
+# CHANGELOG:
+# * 2016-11-20: Merging the changes from @femoltor with a new changes
+# 		Changed the ignore words feature to take a file on the command line
+# * 2014-07 (@femoltor):
+#		 Add optional ignore usernames feature.
+#		 For non english users: Fix problem with latin an cirilyc characters.
+#		 Developing dictionaries to ignore non meaningfull words (subset of http://www.link-assistant.com/seo-stop-words.html)	
+#
+# TODO: Ignore shortened URLs
+# TODO: Optional ignore hashtags (sometimes they are useful, sometimes not)
 
 require 'yaml'
 require 'twitter'
 require 'getoptlong'
+require 'fileutils'
 
-opts = GetoptLong.new(
-	[ '--help', '-h', GetoptLong::NO_ARGUMENT ],
-	[ '--config', GetoptLong::REQUIRED_ARGUMENT ],
-	[ '--count', '-c', GetoptLong::NO_ARGUMENT ],
-	[ '--min_word_length', "-m" , GetoptLong::REQUIRED_ARGUMENT ],
-	[ '--term_file', "-T" , GetoptLong::REQUIRED_ARGUMENT ],
-	[ '--terms', "-t" , GetoptLong::REQUIRED_ARGUMENT ],
-	[ '--user_file', "-U" , GetoptLong::REQUIRED_ARGUMENT ],
-	[ '--users', "-u" , GetoptLong::REQUIRED_ARGUMENT ],
-	[ '--verbose', "-v" , GetoptLong::NO_ARGUMENT ]
-)
 
 def sample_config
 	puts "The config file \"#{@config_file}\" is missing or invalid, please create a config file in the format:"
@@ -42,10 +43,10 @@ To get your keys you must register with Twitter at: https://apps.twitter.com/
 end
 
 def usage
-	puts 'twofi 2.0-beta Robin Wood (robin@digininja.org) (www.digininja.org)
-twofi - Twitter Words of Interest
+	puts 'twoif 2.0 Robin Wood (robin@digi.ninja) (httsp://digi.ninja)
+twoif - Twitter Words of Interest
 
-Usage: twofi [OPTIONS]
+Usage: twoif [OPTIONS]
 	--help, -h: show help
 	--config <file>: config file, default is twofi.yml
 	--count, -c: include the count with the words
@@ -56,16 +57,12 @@ Usage: twofi [OPTIONS]
 	--user_file, -U <file>: a file containing a list of users
 	--users, -u: comma separated usernames
 		quote words containing spaces, no space after commas
+	--ignore-usernames, -i: Ignore the usernames mentioned in the tweets
+	--ignore-words, -w: Ignore the non meaningful words (articles, conjunctions, etc.)
 	--verbose, -v: verbose
-
 '
 	exit
 end
-
-# Default this to nil and it is then created
-# when first needed in the search
-
-@twitter_client = nil
 
 def twitter_search(query)
 	if @twitter_client.nil?
@@ -93,11 +90,38 @@ def twitter_search(query)
 	return data
 end
 
+def is_username(word)
+	return !/^@[^\s]{3,15}$/.match(word).nil?
+end
+
+########
+# MAIN #
+########
+
+opts = GetoptLong.new(
+	[ '--help', '-h', GetoptLong::NO_ARGUMENT ],
+	[ '--config', GetoptLong::REQUIRED_ARGUMENT ],
+	[ '--count', '-c', GetoptLong::NO_ARGUMENT ],
+	[ '--min_word_length', "-m" , GetoptLong::REQUIRED_ARGUMENT ],
+	[ '--term_file', "-T" , GetoptLong::REQUIRED_ARGUMENT ],
+	[ '--terms', "-t" , GetoptLong::REQUIRED_ARGUMENT ],
+	[ '--user_file', "-U" , GetoptLong::REQUIRED_ARGUMENT ],
+	[ '--users', "-u" , GetoptLong::REQUIRED_ARGUMENT ],
+	[ '--ignore-usernames', "-i" , GetoptLong::NO_ARGUMENT ],
+	[ '--ignore-words', "-w" , GetoptLong::REQUIRED_ARGUMENT ],
+	[ '--verbose', "-v" , GetoptLong::NO_ARGUMENT ]
+)
+
 users=[]
 terms=[]
 min_word_length=3
 show_count=false
+ignoreusernames=false
 @config_file = "twofi.yml"
+# Default this to nil and it is then created
+# when first needed in the search
+@twitter_client = nil
+@ignore_words = []
 
 begin
 	opts.each do |opt, arg|
@@ -140,6 +164,20 @@ begin
 			min_word_length=arg.to_i
 			if min_word_length<1
 				usage
+			end
+		when '--ignore-usernames'
+			ignoreusernames=true
+		when '--ignore-words'
+			begin
+				File.new(arg, 'r').each_line do |line|
+					if line != ""
+						@ignore_words << line.strip.upcase
+					end
+				end
+			rescue => e
+				puts "Unable to read the ignore words file\n"
+				puts e.inspect
+				exit
 			end
 		when '--verbose'
 			verbose=true
@@ -208,12 +246,17 @@ else
 	results.each do |result|
 		# have to .dup the text as it comes in frozen
 		text = result.full_text.dup
-		# Strip any non word type characters
-		text.gsub!(/[^\w \s \d]/, ' ')
+		# Strip any non word type characters and substitute accents and other Latin and cirilyc chars
+		text.tr!(
+		"ÀÁÂÃÄÅàáâãäåĀāĂăĄąÇçĆćĈĉĊċČčÐðĎďĐđÈÉÊËèéêëĒēĔĕĖėĘęĚěĜĝĞğĠġĢģĤĥĦħÌÍÎÏìíîïĨĩĪīĬĭĮįİıĴĵĶķĸĹĺĻļĽľĿŀŁłÑñŃńŅņŇňŉŊŋÒÓÔÕÖØòóôõöøŌōŎŏŐőŔŕŖŗŘřŚśŜŝŞşŠšſŢţŤťŦŧÙÚÛÜùúûüŨũŪūŬŭŮůŰűŲųŴŵÝýÿŶŷŸŹźŻżŽž",
+		"AAAAAAaaaaaaAaAaAaCcCcCcCcCcDdDdDdEEEEeeeeEeEeEeEeEeGgGgGgGgHhHhIIIIiiiiIiIiIiIiIiJjKkkLlLlLlLlLlNnNnNnNnnNnOOOOOOooooooOoOoOoRrRrRrSsSsSsSssTtTtTtUUUUuuuuUuUuUuUuUuUuWwYyyYyYZzZzZz"
+		)
+		text.gsub!(/[^\w \s \d \@]/, ' ')
+		text.gsub!("@"," ") if !ignoreusernames
 		words = text.split(/\s/)
 		words.each do |word|
 			#Empty or shorter than required
-			if word == '' or word.length < min_word_length
+			if word == '' or word.length < min_word_length or (is_username(word) and ignoreusernames) or (not @ignore_words.index(word.upcase).nil?)
 				next
 			end
 			if wordlist.key?(word)
@@ -238,7 +281,7 @@ end
 # requests next time
 unless @twitter_client.bearer_token.nil?
 	config['options']["bearer_token"] = @twitter_client.bearer_token.to_s
-	File.open(@config_file,'w') do |h| 
+	File.open(@config_file,'w') do |h|
 		h.write config.to_yaml
 	end
 end
