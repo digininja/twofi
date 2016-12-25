@@ -15,8 +15,7 @@
 # Licence:: Creative Commons Attribution-Share Alike 2.0
 #
 # CHANGELOG:
-# * 2016-11-20: Merging the changes from @femoltor with a new changes
-# 		Changed the ignore words feature to take a file on the command line
+# *
 # * 2014-07 (@femoltor):
 #		 Add optional ignore usernames feature.
 #		 For non english users: Fix problem with latin an cirilyc characters.
