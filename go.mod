@@ -1,6 +1,6 @@
-module github.com/digininja/go_practice/twitter
+module github.com/digininja/twofi
 
-go 1.16
+go 1.15
 
 require (
 	github.com/dghubble/go-twitter v0.0.0-20201011215211-4b180d0cc78d
