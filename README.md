@@ -25,9 +25,9 @@ The application was originally written in Ruby but as the Ruby gem I was using s
 
 You can download the source using `go get` with:
 
-'''
+```
 go get github.com/digininja/twofi
-'''
+```
 
 And then build with:
 
