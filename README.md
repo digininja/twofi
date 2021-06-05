@@ -3,7 +3,7 @@
 Copyright(c) 2021, Robin Wood <robin@digi.ninja>
 
 When attempting to crack passwords custom word lists are very useful additions
-to standard dictionaries. An interesting idea originally released on the "7
+to standard dictionaries. An interesting idea originally released on the 7
 Habits of Highly Effective Hackers" blog was to use Twitter to help generate
 those lists based on searches for keywords related to the list that is being
 cracked. I've expanded this idea into twofi which will take multiple search
@@ -11,46 +11,42 @@ terms and return a word list sorted by most common first.
 
 The original blog post is at:
 
-http://7habitsofhighlyeffectivehackers.blogspot.com.au/2012/05/using-twitter-to-build-password.html
+[Using twitter to build password cracking wordlist](http://7habitsofhighlyeffectivehackers.blogspot.com.au/2012/05/using-twitter-to-build-password.html)
 
-A second option, suggested by @pentest4dummies, was to look at what specific
+A second option, suggested by [@pentest4dummies](https://twitter.com/pentest4dummies), was to look at what specific
 users have been saying and use their own tweets to build up the list so I've
 added that as well. Given a list of twitter usernames the script will bring back
 as many tweets for each user as the API will allow and use those to create the
 list.
 
-Installation
-============
+The application was originally written in Ruby but as the Ruby gem I was using seems to have gone out of date, I've switched over to Go.
 
-The only ruby gem that probably isn't installed by default is the twitter one, to
-install this run:
+## Installation
 
-bundle install
+You can download the source using `go get` with:
 
-Then you can run twofi by either using ruby
+'''
+go get github.com/digininja/twofi
+'''
 
-ruby twofi.rb
+And then build with:
 
-or making it executable then running it directly
+```
+cd twofi
+go build
+```
 
-chmod a+x twofi.rb
-./twofi.rb
+## API Keys
 
-Version 1 of Twofi used the now removed Twitter search feature which did not
-require any authentication. Version 2 now uses the new API which requires you to
-have a Twitter account and apply for API keys. The process is simple and
-instant, no cash, no waiting for human approval, so no big deal. You need to go
-to:
+You need a set of API keys to do Twitter searches, you can get a set from here:
 
-https://apps.twitter.com/
+[Twitter Developer Console](https://developer.twitter.com/en/apps)
 
-And fill in your details. This will give you a pair of keys which you then need
-to put into the twofi.yml config file.
-
+You can pass these to the app on the command line or put them in the config file.
 
 At the moment the script expects the config file to be in the same directory as
 twofi is being ran from, if this is not the case you can tell it where the
-config file is by using the --config parameter.
+config file is by using the -config parameter.
 
 Usage
 =====
