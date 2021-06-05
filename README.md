@@ -1,7 +1,6 @@
-twofi, Twitter Words of Interest
-================================
+# twofi, Twitter Words of Interest
 
-Copyright(c) 2014, Robin Wood <robin@digininja.org>
+Copyright(c) 2021, Robin Wood <robin@digi.ninja>
 
 When attempting to crack passwords custom word lists are very useful additions
 to standard dictionaries. An interesting idea originally released on the "7
