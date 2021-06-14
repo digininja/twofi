@@ -1,5 +1,10 @@
 {
+	"Term": "digininja",
 	"Key": "Get these values from",
 	"Secret": "https://developer.twitter.com/en/apps",
-	"MinLength": 3
+	"MinLength": 3,
+	"Results":   20,
+	"IncCounts": false,
+	"IncTweets": false,
+	"Debug": false
 }
