@@ -64,6 +64,15 @@ Usage: twofi [OPTIONS]
 		quote words containing spaces, no space after commas
 	--verbose, -v: verbose
 
+## Search Operators
+
+If you want to get more advanced on search terms, this page has some very good details on how to use the different search operators:
+
+[Rules and filtering: Standard v1.1](https://developer.twitter.com/en/docs/twitter-api/v1/rules-and-filtering/search-operators)
+
+The Twitter [Help Centre](https://help.twitter.com/en/using-twitter/twitter-advanced-search) also gives you some advice on searching.
+
+
 Usage is fairly simple, you can specify search terms or usernames either on the
 command line as comma separated lists or through files which you pass in. If you
 are specifying the terms or users on the command line you cannot have a space
